@@ -82,20 +82,23 @@ async def activate_account(user_data: UserActivationRequestSchema, db: AsyncSess
     }
 
 
-@router.post("/password-reset/request/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.post("/reset-password/request/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def reset_password_request(email_data: PasswordResetRequestSchema, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(UserModel).where(UserModel.email == email_data.email))
-    user = result.scalar_one_or_none()
-    if user is not None and user.is_active:
-        await db.execute(delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id))
-        await db.commit()
-        reset_token = PasswordResetTokenModel(user_id=user.id, user=user)
-        db.add(reset_token)
-        await db.commit()
-    return {"message": "If you are registered, you will receive an email with instructions."}
+    try:
+        result = await db.execute(select(UserModel).where(UserModel.email == email_data.email))
+        user = result.scalar_one_or_none()
+        if user is not None and user.is_active:
+            await db.execute(delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id))
+            await db.commit()
+            reset_token = PasswordResetTokenModel(user_id=user.id, user=user)
+            db.add(reset_token)
+            await db.commit()
+        return {"message": "If you are registered, you will receive an email with instructions."}
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="An error occurred while resetting the password.")
 
 
-@router.post("/password-reset/complete/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.post("/reset-password/complete/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def reset_password_complete(data: PasswordResetCompleteRequestSchema, db: AsyncSession = Depends(get_db)):
     try:
         user = await get_user_by_email(db, email=data.email)
@@ -119,7 +122,7 @@ async def reset_password_complete(data: PasswordResetCompleteRequestSchema, db: 
         raise HTTPException(status_code=500, detail="An error occurred while resetting the password.")
 
 
-@router.post("/login/", response_model=UserLoginResponseSchema, status_code=status.HTTP_200_OK)
+@router.post("/login/", response_model=UserLoginResponseSchema, status_code=status.HTTP_201_CREATED)
 async def login_request(
         user_data: UserLoginRequestSchema,
         db: AsyncSession = Depends(get_db),
@@ -156,7 +159,7 @@ async def login_request(
         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
 
 
-@router.post("/refresh/", response_model=TokenRefreshResponseSchema, status_code=status.HTTP_200_OK)
+@router.post("/refresh/", response_model=TokenRefreshResponseSchema, status_code=status.HTTP_201_CREATED)
 async def refresh_access_token(
         request: TokenRefreshRequestSchema,
         db: AsyncSession = Depends(get_db),
