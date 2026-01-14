@@ -107,6 +107,9 @@ async def reset_password_complete(data: PasswordResetCompleteRequestSchema, db: 
         token = await db.execute(select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id))
         token = token.scalar_one_or_none()
         if token is None or token.token != data.token:
+            if token:
+                await db.delete(token)
+                await db.commit()
             raise HTTPException(status_code=400, detail="Invalid email or token.")
         if token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
             await db.delete(token)
