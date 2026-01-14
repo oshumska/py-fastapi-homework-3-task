@@ -22,6 +22,9 @@ class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: str
 
+    class Config:
+        from_attributes = True
+
 
 class UserActivationRequestSchema(BaseModel):
     email: str
@@ -30,6 +33,9 @@ class UserActivationRequestSchema(BaseModel):
 
 class MessageResponseSchema(BaseModel):
     message: str
+
+    class Config:
+        from_attributes = True
 
 
 class PasswordResetRequestSchema(BaseModel):
@@ -52,6 +58,9 @@ class UserLoginResponseSchema(BaseModel):
     refresh_token: str
     token_type: str
 
+    class Config:
+        from_attributes = True
+
 
 class TokenRefreshRequestSchema(BaseModel):
     refresh_token: str
@@ -59,3 +68,6 @@ class TokenRefreshRequestSchema(BaseModel):
 
 class TokenRefreshResponseSchema(BaseModel):
     access_token: str
+
+    class Config:
+        from_attributes = True
