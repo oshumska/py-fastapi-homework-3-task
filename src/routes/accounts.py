@@ -82,7 +82,7 @@ async def activate_account(user_data: UserActivationRequestSchema, db: AsyncSess
     }
 
 
-@router.post("/reset-password/request/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.post("/password-reset/request/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def reset_password_request(email_data: PasswordResetRequestSchema, db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(UserModel).where(UserModel.email == email_data.email))
@@ -159,7 +159,7 @@ async def login_request(
         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
 
 
-@router.post("/refresh/", response_model=TokenRefreshResponseSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/refresh/", response_model=TokenRefreshResponseSchema, status_code=status.HTTP_200_OK)
 async def refresh_access_token(
         request: TokenRefreshRequestSchema,
         db: AsyncSession = Depends(get_db),
