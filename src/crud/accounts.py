@@ -15,7 +15,6 @@ async def hash_user_password(
 ) -> UserModel:
     hashed = hash_password(user.password)
     db_user = UserModel(email=str(user.email), _hashed_password=hashed, group=group)
-    db.add(db_user)
     return db_user
 
 

@@ -37,11 +37,13 @@ router = APIRouter()
 @router.post("/register/", response_model=UserRegistrationResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_user(user: UserRegistrationRequestSchema, db: AsyncSession = Depends(get_db)):
     try:
-        if get_user_by_email(db, email=str(user.email)):
+        user_exist = await get_user_by_email(db, email=str(user.email))
+        if user_exist is not None:
             raise HTTPException(status_code=409, detail=f"A user with this email {user.email} already exists.")
         result = await db.execute(select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER))
         group = result.scalar_one_or_none()
         new_user = await hash_user_password(db, user, group)
+        db.add(new_user)
         await db.flush()
         activation_token = ActivationTokenModel(user_id=new_user.id, user=new_user)
         db.add(activation_token)
@@ -69,7 +71,7 @@ async def activate_account(user_data: UserActivationRequestSchema, db: AsyncSess
         return HTTPException(status_code=400, detail="Invalid or expired activation token.")
     if token.user_id != user.id:
         return HTTPException(status_code=400, detail="Invalid or expired activation token.")
-    if token.expires_at < datetime.now(timezone.utc):
+    if token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         return HTTPException(status_code=400, detail="Invalid or expired activation token.")
     user.is_active = True
     await db.delete(token)
@@ -101,12 +103,12 @@ async def reset_password_complete(data: PasswordResetCompleteRequestSchema, db: 
             return HTTPException(status_code=400, detail="Invalid email or token.")
         token = await db.execute(select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id))
         token = token.scalar_one_or_none()
-        if not token or token.token != data.token:
-            return HTTPException(status_code=400, detail="Invalid token.")
-        if token.expires_at < datetime.now(timezone.utc):
+        if token is None or token.token != data.token:
+            return HTTPException(status_code=400, detail="Invalid email or token.")
+        if token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
             await db.delete(token)
             await db.commit()
-            return HTTPException(status_code=400, detail="Invalid token.")
+            return HTTPException(status_code=400, detail="Invalid email or token.")
         user.password = data.password
         await db.delete(token)
         await db.commit()
@@ -136,12 +138,14 @@ async def login_request(
         }
         access_token = jwt_manager.create_access_token(
             data,
-            expires_delta=timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_SECONDS)
+            expires_delta=timedelta(days=1)
         )
         refresh_token = jwt_manager.create_refresh_token(
             data=data, expires_delta=timedelta(days=3)
         )
-        RefreshTokenModel.create(user_id=user.id, token=refresh_token, days_valid=3)
+        db_token = RefreshTokenModel.create(user_id=user.id, token=refresh_token, days_valid=3)
+        db.add(db_token)
+        await db.commit()
         return_login_data = {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -179,6 +183,6 @@ async def refresh_access_token(
     }
     new_access_token = jwt_manager.create_access_token(
         data,
-        expires_delta=timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_SECONDS)
+        expires_delta=timedelta(days=1)
     )
     return {"access_token": new_access_token}
